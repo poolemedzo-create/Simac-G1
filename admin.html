@@ -14,14 +14,387 @@
 </main>
 <script src="config.js"></script>
 <script>
-const days=['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];let data={version:1,days,rows:[]};
-function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));}
-function loadJsonp(url){return new Promise((resolve,reject)=>{const cb='admin_cb_'+Date.now();const s=document.createElement('script');const sep=url.includes('?')?'&':'?';const timer=setTimeout(()=>{cleanup();reject()},8000);function cleanup(){clearTimeout(timer);delete window[cb];s.remove()}window[cb]=d=>{cleanup();resolve(d)};s.onerror=()=>{cleanup();reject()};s.src=url+sep+'callback='+cb+'&t='+Date.now();document.head.appendChild(s)})}
-function render(){const body=document.getElementById('editorBody');body.innerHTML=data.rows.map((r,i)=>`<tr><td class="cell"><input data-r="${i}" data-f="time" value="${esc(r.time)}"></td>${r.days.map((c,j)=>`<td class="cell"><input data-r="${i}" data-d="${j}" data-f="title" value="${esc(c.title)}"><select data-r="${i}" data-d="${j}" data-f="type"><option value="subject" ${c.type==='subject'?'selected':''}>Cours</option><option value="group" ${c.type==='group'?'selected':''}>Groupe/Meet</option><option value="free" ${c.type==='free'?'selected':''}>Libre</option></select></td>`).join('')}<td><button class="danger" onclick="removeRow(${i})">Supprimer</button></td></tr>`).join('')}
-function sync(){document.querySelectorAll('[data-f]').forEach(el=>{const i=+el.dataset.r;if(el.dataset.f==='time')data.rows[i].time=el.value;else if(el.dataset.f==='title')data.rows[i].days[+el.dataset.d].title=el.value;else data.rows[i].days[+el.dataset.d].type=el.value;});}
-function removeRow(i){data.rows.splice(i,1);render()}
-document.getElementById('load').onclick=async()=>{const key=document.getElementById('key').value.trim();if(!key)return alert('Entre le mot de passe.');try{data=await loadJsonp(API_URL+'?action=get&key='+encodeURIComponent(key));document.getElementById('panel').style.display='block';document.getElementById('panel').dataset.key=key;render();document.getElementById('status').textContent='Planning chargé.'}catch(e){alert('Impossible de charger. Vérifie l’URL Apps Script et le mot de passe.')}};
-document.getElementById('add').onclick=()=>{sync();data.rows.push({time:'17h - 19h',days:days.map(()=>({type:'free',title:'Libre'}))});render()};
-document.getElementById('save').onclick=()=>{sync();const key=document.getElementById('panel').dataset.key;if(!key)return;const form=document.createElement('form');form.method='POST';form.action=API_URL;form.target='saveFrame';[['action','save'],['key',key],['data',JSON.stringify(data)]].forEach(([n,v])=>{const i=document.createElement('input');i.type='hidden';i.name=n;i.value=v;form.appendChild(i)});document.body.appendChild(form);form.submit();form.remove();document.getElementById('status').textContent='⏳ Enregistrement envoyé…';setTimeout(()=>document.getElementById('status').textContent='✅ Enregistré. Recharge la page publique.',1200)};
+const days = ['Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi','Dimanche'];
+
+let data = {
+    version: 1,
+    rows: []
+};
+
+function esc(v) {
+    return String(v ?? '').replace(/[&<>"']/g, c => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    }[c]));
+}
+
+/*
+ * Transforme le format Apps Script :
+ *
+ * {
+ *   "08h-10h": {
+ *      "Lundi": "Électricité Appliquée",
+ *      ...
+ *   }
+ * }
+ *
+ * vers le format utilisé par l'éditeur.
+ */
+function apiToEditor(apiData) {
+
+    const rows = [];
+
+    Object.entries(apiData).forEach(([time, schedule]) => {
+
+        rows.push({
+            time: time,
+            days: days.map(day => {
+
+                const title = schedule[day] || 'Libre';
+
+                let type = 'subject';
+
+                if (
+                    title === 'Libre' ||
+                    title.toLowerCase() === 'libre'
+                ) {
+                    type = 'free';
+                }
+                else if (
+                    title.toLowerCase().includes('meet') ||
+                    title.toLowerCase().includes('groupe')
+                ) {
+                    type = 'group';
+                }
+
+                return {
+                    type: type,
+                    title: title
+                };
+            })
+        });
+
+    });
+
+    return {
+        version: 1,
+        rows: rows
+    };
+}
+
+/*
+ * Transforme l'éditeur vers le format attendu
+ * par Google Apps Script et la page publique.
+ */
+function editorToApi() {
+
+    const result = {};
+
+    data.rows.forEach(row => {
+
+        result[row.time] = {};
+
+        days.forEach((day, index) => {
+
+            const cell = row.days[index];
+
+            result[row.time][day] =
+                cell.type === 'free'
+                    ? 'Libre'
+                    : cell.title;
+
+        });
+
+    });
+
+    return result;
+}
+
+function loadJsonp(url) {
+
+    return new Promise((resolve, reject) => {
+
+        const cb = 'admin_cb_' + Date.now();
+
+        const script = document.createElement('script');
+
+        const separator = url.includes('?') ? '&' : '?';
+
+        const timer = setTimeout(() => {
+            cleanup();
+            reject(new Error('Timeout'));
+        }, 8000);
+
+        function cleanup() {
+            clearTimeout(timer);
+            delete window[cb];
+            script.remove();
+        }
+
+        window[cb] = response => {
+            cleanup();
+            resolve(response);
+        };
+
+        script.onerror = () => {
+            cleanup();
+            reject(new Error('Erreur réseau'));
+        };
+
+        script.src =
+            url +
+            separator +
+            'callback=' +
+            cb +
+            '&t=' +
+            Date.now();
+
+        document.head.appendChild(script);
+    });
+}
+
+function render() {
+
+    const body = document.getElementById('editorBody');
+
+    body.innerHTML = data.rows.map((row, i) => `
+
+        <tr>
+
+            <td class="cell">
+                <input
+                    data-r="${i}"
+                    data-f="time"
+                    value="${esc(row.time)}"
+                >
+            </td>
+
+            ${row.days.map((cell, j) => `
+
+                <td class="cell">
+
+                    <input
+                        data-r="${i}"
+                        data-d="${j}"
+                        data-f="title"
+                        value="${esc(cell.title)}"
+                    >
+
+                    <select
+                        data-r="${i}"
+                        data-d="${j}"
+                        data-f="type"
+                    >
+
+                        <option
+                            value="subject"
+                            ${cell.type === 'subject' ? 'selected' : ''}
+                        >
+                            Cours
+                        </option>
+
+                        <option
+                            value="group"
+                            ${cell.type === 'group' ? 'selected' : ''}
+                        >
+                            Groupe/Meet
+                        </option>
+
+                        <option
+                            value="free"
+                            ${cell.type === 'free' ? 'selected' : ''}
+                        >
+                            Libre
+                        </option>
+
+                    </select>
+
+                </td>
+
+            `).join('')}
+
+            <td>
+                <button
+                    class="danger"
+                    onclick="removeRow(${i})"
+                >
+                    Supprimer
+                </button>
+            </td>
+
+        </tr>
+
+    `).join('');
+}
+
+function sync() {
+
+    document.querySelectorAll('[data-f]').forEach(el => {
+
+        const i = Number(el.dataset.r);
+
+        if (el.dataset.f === 'time') {
+
+            data.rows[i].time = el.value;
+
+        }
+        else if (el.dataset.f === 'title') {
+
+            data.rows[i]
+                .days[Number(el.dataset.d)]
+                .title = el.value;
+
+        }
+        else {
+
+            data.rows[i]
+                .days[Number(el.dataset.d)]
+                .type = el.value;
+
+        }
+
+    });
+}
+
+function removeRow(i) {
+
+    data.rows.splice(i, 1);
+
+    render();
+}
+
+/* CHARGER */
+document.getElementById('load').onclick = async () => {
+
+    const key =
+        document.getElementById('key').value.trim();
+
+    if (!key) {
+        alert('Entre le mot de passe.');
+        return;
+    }
+
+    try {
+
+        const response = await loadJsonp(
+            API_URL +
+            '?action=get&key=' +
+            encodeURIComponent(key)
+        );
+
+        console.log('Réponse Apps Script :', response);
+
+        if (!response.success) {
+
+            throw new Error(
+                response.error || 'Accès refusé'
+            );
+        }
+
+        data = apiToEditor(response.data);
+
+        document.getElementById('panel')
+            .style.display = 'block';
+
+        document.getElementById('panel')
+            .dataset.key = key;
+
+        render();
+
+        document.getElementById('status')
+            .textContent = 'Planning chargé.';
+
+    }
+    catch (error) {
+
+        console.error(error);
+
+        alert(
+            'Impossible de charger le planning.\n\n' +
+            'Vérifie l’URL Apps Script et le mot de passe.'
+        );
+    }
+};
+
+/* AJOUTER */
+document.getElementById('add').onclick = () => {
+
+    sync();
+
+    data.rows.push({
+
+        time: '17h - 19h',
+
+        days: days.map(() => ({
+            type: 'free',
+            title: 'Libre'
+        }))
+
+    });
+
+    render();
+};
+
+/* ENREGISTRER */
+document.getElementById('save').onclick = () => {
+
+    sync();
+
+    const key =
+        document.getElementById('panel').dataset.key;
+
+    if (!key) {
+        alert('Mot de passe administrateur manquant.');
+        return;
+    }
+
+    const apiData = editorToApi();
+
+    const form = document.createElement('form');
+
+    form.method = 'POST';
+    form.action = API_URL;
+    form.target = 'saveFrame';
+
+    const fields = [
+        ['action', 'save'],
+        ['key', key],
+        ['data', JSON.stringify(apiData)]
+    ];
+
+    fields.forEach(([name, value]) => {
+
+        const input =
+            document.createElement('input');
+
+        input.type = 'hidden';
+        input.name = name;
+        input.value = value;
+
+        form.appendChild(input);
+
+    });
+
+    document.body.appendChild(form);
+
+    form.submit();
+
+    form.remove();
+
+    document.getElementById('status')
+        .textContent =
+        '⏳ Enregistrement envoyé…';
+
+    setTimeout(() => {
+
+        document.getElementById('status')
+            .textContent =
+            '✅ Enregistré. Recharge la page publique.';
+
+    }, 1500);
+};
 </script><iframe name="saveFrame" style="display:none"></iframe>
 </body></html>
