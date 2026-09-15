@@ -1,0 +1,246 @@
+{
+  "version": 1,
+  "updatedAt": "",
+  "days": [
+    "Lundi",
+    "Mardi",
+    "Mercredi",
+    "Jeudi",
+    "Vendredi",
+    "Samedi",
+    "Dimanche"
+  ],
+  "rows": [
+    {
+      "time": "08h - 10h",
+      "days": [
+        {
+          "type": "subject",
+          "title": "Électricité Appliquée"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        },
+        {
+          "type": "subject",
+          "title": "Analyse 1"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        }
+      ]
+    },
+    {
+      "time": "09h - 11h",
+      "days": [
+        {
+          "type": "free",
+          "title": "Libre"
+        },
+        {
+          "type": "subject",
+          "title": "Architecture des Ordinateurs 1"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        },
+        {
+          "type": "subject",
+          "title": "Introduction à la Cybersécurité"
+        },
+        {
+          "type": "subject",
+          "title": "Système d'Exploitation 1"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        }
+      ]
+    },
+    {
+      "time": "10h - 12h",
+      "days": [
+        {
+          "type": "free",
+          "title": "Libre"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        },
+        {
+          "type": "subject",
+          "title": "Introduction à la Cybersécurité"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        }
+      ]
+    },
+    {
+      "time": "15h - 17h",
+      "days": [
+        {
+          "type": "free",
+          "title": "Libre"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        }
+      ]
+    },
+    {
+      "time": "17h - 19h",
+      "days": [
+        {
+          "type": "subject",
+          "title": "Algorithme 1"
+        },
+        {
+          "type": "subject",
+          "title": "Algorithme 1"
+        },
+        {
+          "type": "subject",
+          "title": "Algorithme 1"
+        },
+        {
+          "type": "subject",
+          "title": "Algèbre 1"
+        },
+        {
+          "type": "subject",
+          "title": "Introduction aux Réseaux"
+        },
+        {
+          "type": "group",
+          "title": "Travail de groupe via Meet"
+        },
+        {
+          "type": "group",
+          "title": "Travail de groupe via Meet"
+        }
+      ]
+    },
+    {
+      "time": "19h - 21h",
+      "days": [
+        {
+          "type": "free",
+          "title": "Libre"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        },
+        {
+          "type": "subject",
+          "title": "Algorithme 1"
+        },
+        {
+          "type": "subject",
+          "title": "Algorithme 1"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        }
+      ]
+    },
+    {
+      "time": "21h - 23h",
+      "days": [
+        {
+          "type": "free",
+          "title": "Libre"
+        },
+        {
+          "type": "group",
+          "title": "Travail de groupe via Meet"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        },
+        {
+          "type": "group",
+          "title": "Travail de groupe via Meet"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        },
+        {
+          "type": "free",
+          "title": "Libre"
+        }
+      ]
+    }
+  ]
+}
