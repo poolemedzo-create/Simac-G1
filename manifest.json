@@ -1,0 +1,9 @@
+{
+  "name": "SIMAC G1 | Emploi du temps",
+  "short_name": "SIMAC G1",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f4f7ff",
+  "theme_color": "#4f46e5",
+  "lang": "fr"
+}
