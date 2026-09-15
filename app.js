@@ -1,5 +1,5 @@
 ```javascript
-(function(){
+(function () {
 
   const FALLBACK = 'emploi_du_temps.json';
 
@@ -16,360 +16,640 @@
   const root = document.getElementById('scheduleBody');
   const mobileRoot = document.getElementById('mobileSchedule');
 
-  function escapeHtml(value){
+
+  // =========================================================
+  // UTILITAIRES
+  // =========================================================
+
+  function escapeHtml(value) {
+
     return String(value ?? '').replace(
       /[&<>"']/g,
-      c => ({
-        '&':'&amp;',
-        '<':'&lt;',
-        '>':'&gt;',
-        '"':'&quot;',
-        "'":'&#039;'
-      }[c])
+      function (c) {
+
+        return {
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#039;'
+        }[c];
+
+      }
     );
   }
 
-  function typeClass(type){
-    return ['subject','group','free'].includes(type)
+
+  function typeClass(type) {
+
+    return ['subject', 'group', 'free'].includes(type)
       ? type
       : 'free';
+
   }
 
-  /*
-   * Chargement JSONP depuis Google Apps Script
-   */
-  function loadJsonp(url){
 
-    return new Promise((resolve,reject)=>{
+  // =========================================================
+  // JSONP
+  // =========================================================
 
-      const cb =
-        'simac_cb_' +
+  function loadJsonp(url) {
+
+    return new Promise(function (resolve, reject) {
+
+      const callbackName =
+        'simac_callback_' +
         Date.now() +
         '_' +
-        Math.floor(Math.random()*10000);
+        Math.floor(Math.random() * 10000);
 
       const script = document.createElement('script');
 
-      const sep = url.includes('?') ? '&' : '?';
+      const separator =
+        url.includes('?') ? '&' : '?';
 
-      const timer = setTimeout(()=>{
+      let finished = false;
+
+
+      const timeout = setTimeout(function () {
+
+        if (finished) return;
+
+        finished = true;
+
         cleanup();
-        reject(new Error('timeout'));
-      },8000);
 
-      function cleanup(){
-        clearTimeout(timer);
-        delete window[cb];
-        script.remove();
+        reject(new Error('API timeout'));
+
+      }, 10000);
+
+
+      function cleanup() {
+
+        clearTimeout(timeout);
+
+        try {
+          delete window[callbackName];
+        } catch (e) {
+          window[callbackName] = undefined;
+        }
+
+        if (script.parentNode) {
+          script.parentNode.removeChild(script);
+        }
+
       }
 
-      window[cb] = (data)=>{
+
+      window[callbackName] = function (data) {
+
+        if (finished) return;
+
+        finished = true;
+
         cleanup();
+
         resolve(data);
+
       };
 
-      script.onerror = ()=>{
+
+      script.onerror = function () {
+
+        if (finished) return;
+
+        finished = true;
+
         cleanup();
-        reject(new Error('api'));
+
+        reject(new Error('Impossible de contacter Google Apps Script'));
+
       };
+
 
       /*
-       * t=Date.now() évite le cache
+       * t=Date.now() empêche le navigateur
+       * d'utiliser une ancienne réponse en cache.
        */
+
       script.src =
         url +
-        sep +
+        separator +
         'callback=' +
-        cb +
+        encodeURIComponent(callbackName) +
         '&t=' +
         Date.now();
 
+
       document.head.appendChild(script);
+
     });
+
   }
 
 
-  /*
-   * Convertit les données Google Apps Script
-   *
-   * API :
-   *
-   * {
-   *   "08h-10h": {
-   *      "Lundi": {...},
-   *      "Mardi": {...}
-   *   }
-   * }
-   *
-   * devient :
-   *
-   * {
-   *   rows: [
-   *      {
-   *        time: "08h-10h",
-   *        days: [...]
-   *      }
-   *   ]
-   * }
-   */
-  function normalizeSchedule(data){
+  // =========================================================
+  // CONVERSION DES DONNÉES
+  // =========================================================
+
+  function normalizeSchedule(response) {
+
+    console.log('🔎 Données reçues :', response);
+
 
     /*
-     * Si l'API renvoie déjà le format rows,
-     * on le garde.
+     * CAS 1
+     *
+     * L'API renvoie :
+     *
+     * {
+     *   success: true,
+     *   data: {...}
+     * }
      */
-    if(data && Array.isArray(data.rows)){
-      return data;
+
+    let data = response;
+
+    if (
+      response &&
+      response.success === true &&
+      response.data
+    ) {
+
+      data = response.data;
+
     }
 
+
     /*
-     * Sinon on convertit le format
-     * Google Apps Script.
+     * CAS 2
+     *
+     * Les données sont déjà :
+     *
+     * {
+     *   rows: [...]
+     * }
      */
-    if(data && typeof data === 'object'){
+
+    if (
+      data &&
+      Array.isArray(data.rows)
+    ) {
+
+      console.log(
+        '✅ Format rows détecté'
+      );
+
+      return data;
+
+    }
+
+
+    /*
+     * CAS 3
+     *
+     * Google Apps Script renvoie :
+     *
+     * {
+     *
+     *   "08h-10h": {
+     *      "Lundi": {
+     *         type: "subject",
+     *         title: "Électricité Appliquée"
+     *      }
+     *   },
+     *
+     *   "09h-11h": {
+     *      ...
+     *   }
+     *
+     * }
+     */
+
+    if (
+      data &&
+      typeof data === 'object' &&
+      !Array.isArray(data)
+    ) {
 
       const rows = Object.entries(data).map(
-        ([time, dayData]) => {
+        function ([time, dayData]) {
 
           return {
+
             time: time,
 
-            days: days.map(day => {
+            days: days.map(
+              function (day) {
 
-              const cell =
-                dayData &&
-                dayData[day]
-                  ? dayData[day]
-                  : {
-                      type: 'free',
-                      title: 'Libre'
-                    };
+                let cell = null;
 
-              return {
-                type: cell.type || 'free',
-                title: cell.title || 'Libre'
-              };
 
-            })
+                if (
+                  dayData &&
+                  typeof dayData === 'object' &&
+                  dayData[day]
+                ) {
+
+                  cell = dayData[day];
+
+                }
+
+
+                /*
+                 * Créneau vide
+                 */
+
+                if (
+                  !cell ||
+                  typeof cell !== 'object'
+                ) {
+
+                  return {
+                    type: 'free',
+                    title: 'Libre'
+                  };
+
+                }
+
+
+                return {
+
+                  type:
+                    cell.type ||
+                    'free',
+
+                  title:
+                    cell.title ||
+                    'Libre'
+
+                };
+
+              }
+            )
+
           };
 
         }
       );
 
+
+      console.log(
+        '✅ Format Google Apps Script converti :',
+        rows
+      );
+
+
       return {
         rows: rows
       };
+
     }
 
-    throw new Error('Format du planning invalide');
+
+    throw new Error(
+      'Format de planning inconnu'
+    );
+
   }
 
 
-  /*
-   * Récupération du planning
-   */
-  async function getSchedule(){
+  // =========================================================
+  // CHARGEMENT DU PLANNING
+  // =========================================================
 
-    try{
+  async function getSchedule() {
 
-      /*
-       * 1. On essaie Google Apps Script
-       */
-      if(
-        typeof API_URL !== 'undefined' &&
-        API_URL &&
-        !API_URL.includes('COLLE_ICI')
-      ){
 
-        console.log(
-          '📡 Chargement du planning depuis Google Apps Script...'
-        );
+    /*
+     * 1️⃣ ESSAYER GOOGLE APPS SCRIPT
+     */
 
-        const data = await loadJsonp(API_URL);
+    if (
+      typeof API_URL !== 'undefined' &&
+      API_URL &&
+      !API_URL.includes('COLLE_ICI')
+    ) {
+
+      try {
 
         console.log(
-          '✅ Planning reçu depuis Google Apps Script:',
-          data
+          '📡 Connexion à Google Apps Script...'
         );
 
-        return normalizeSchedule(data);
+
+        const response =
+          await loadJsonp(API_URL);
+
+
+        console.log(
+          '📦 Réponse Google Apps Script :',
+          response
+        );
+
+
+        return normalizeSchedule(response);
+
+      } catch (error) {
+
+        console.error(
+          '❌ Google Apps Script :',
+          error
+        );
+
+        console.log(
+          '⚠️ Passage au fichier local...'
+        );
+
       }
 
-    }catch(error){
-
-      console.warn(
-        '⚠️ Impossible de récupérer Google Apps Script.',
-        error
-      );
-
     }
+
 
     /*
-     * 2. Fallback vers emploi_du_temps.json
+     * 2️⃣ FALLBACK :
+     * emploi_du_temps.json
      */
+
     console.log(
-      '📁 Utilisation du planning local.'
+      '📁 Chargement de emploi_du_temps.json...'
     );
+
 
     const response = await fetch(
-      FALLBACK + '?t=' + Date.now()
+      FALLBACK +
+      '?t=' +
+      Date.now()
     );
 
-    if(!response.ok){
+
+    if (!response.ok) {
+
       throw new Error(
-        'Impossible de charger ' + FALLBACK
+        'Impossible de charger ' +
+        FALLBACK
       );
+
     }
 
-    const data = await response.json();
+
+    const data =
+      await response.json();
+
+
+    console.log(
+      '📦 Données du fichier local :',
+      data
+    );
+
 
     return normalizeSchedule(data);
+
   }
 
 
-  /*
-   * Affichage du planning
-   */
-  function render(data){
+  // =========================================================
+  // AFFICHAGE DESKTOP
+  // =========================================================
 
-    const rows = data.rows || [];
-
-    /*
-     * Desktop
-     */
-    root.innerHTML = rows.map(row => {
-
-      return `
-        <tr>
-
-          <td class="time">
-            ${escapeHtml(row.time)}
-          </td>
-
-          ${row.days.map(cell => {
-
-            return `
-              <td class="${typeClass(cell.type)}">
-                ${escapeHtml(cell.title)}
-              </td>
-            `;
-
-          }).join('')}
-
-        </tr>
-      `;
-
-    }).join('');
+  function renderDesktop(rows) {
 
 
-    /*
-     * Mobile
-     */
-    mobileRoot.innerHTML = days.map((day, di) => {
+    if (!root) {
 
-      const items = rows
-        .map(row => ({
-          time: row.time,
-          cell: row.days[di]
-        }))
-        .filter(
-          item =>
-            item.cell &&
-            item.cell.type !== 'free'
-        );
+      console.error(
+        '❌ #scheduleBody introuvable'
+      );
+
+      return;
+
+    }
 
 
-      return `
-        <div class="day">
+    root.innerHTML =
+      rows.map(function (row) {
 
-          <div class="day-title">
+        return `
+          <tr>
 
-            <h3>
-              ${day}
-            </h3>
+            <td class="time">
+              ${escapeHtml(row.time)}
+            </td>
 
-            <span class="day-number">
-              ${String(di + 1).padStart(2,'0')}
-            </span>
+            ${row.days.map(function (cell) {
 
-          </div>
+              return `
+                <td class="${typeClass(cell.type)}">
+                  ${escapeHtml(cell.title)}
+                </td>
+              `;
 
-          ${
-            items.length
+            }).join('')}
 
-              ? items.map(item => {
+          </tr>
+        `;
 
-                  return `
-                    <div class="mobile-item">
+      }).join('');
 
-                      <div class="mobile-time">
-                        ${escapeHtml(item.time)}
-                      </div>
+  }
 
-                      <div class="mobile-content ${typeClass(item.cell.type)}">
-                        ${escapeHtml(item.cell.title)}
-                      </div>
 
-                    </div>
-                  `;
+  // =========================================================
+  // AFFICHAGE MOBILE
+  // =========================================================
 
-                }).join('')
+  function renderMobile(rows) {
 
-              : `
+
+    if (!mobileRoot) {
+
+      console.warn(
+        '⚠️ #mobileSchedule introuvable'
+      );
+
+      return;
+
+    }
+
+
+    mobileRoot.innerHTML =
+      days.map(function (day, dayIndex) {
+
+
+        const items =
+          rows
+            .map(function (row) {
+
+              return {
+
+                time: row.time,
+
+                cell:
+                  row.days &&
+                  row.days[dayIndex]
+                    ? row.days[dayIndex]
+                    : {
+                        type: 'free',
+                        title: 'Libre'
+                      }
+
+              };
+
+            })
+            .filter(function (item) {
+
+              return (
+                item.cell &&
+                item.cell.type !== 'free'
+              );
+
+            });
+
+
+        let content = '';
+
+
+        /*
+         * Aucun cours
+         */
+
+        if (items.length === 0) {
+
+          content = `
+            <div class="mobile-item">
+
+              <div class="mobile-time">
+                —
+              </div>
+
+              <div class="mobile-content free">
+                Libre
+              </div>
+
+            </div>
+          `;
+
+        }
+
+
+        /*
+         * Cours
+         */
+
+        else {
+
+          content =
+            items.map(function (item) {
+
+              return `
                 <div class="mobile-item">
 
                   <div class="mobile-time">
-                    —
+                    ${escapeHtml(item.time)}
                   </div>
 
-                  <div class="mobile-content free">
-                    Libre
+                  <div class="mobile-content ${typeClass(item.cell.type)}">
+                    ${escapeHtml(item.cell.title)}
                   </div>
 
                 </div>
-              `
-          }
+              `;
 
-        </div>
-      `;
+            }).join('');
 
-    }).join('');
+        }
+
+
+        return `
+          <div class="day">
+
+            <div class="day-title">
+
+              <h3>
+                ${escapeHtml(day)}
+              </h3>
+
+              <span class="day-number">
+                ${String(dayIndex + 1).padStart(2, '0')}
+              </span>
+
+            </div>
+
+            ${content}
+
+          </div>
+        `;
+
+
+      }).join('');
+
   }
 
 
-  /*
-   * Chargement initial
-   */
-  getSchedule()
+  // =========================================================
+  // RENDU GLOBAL
+  // =========================================================
 
-    .then(data => {
+  function render(data) {
 
-      console.log(
-        '📅 Planning final:',
-        data
+
+    if (
+      !data ||
+      !Array.isArray(data.rows)
+    ) {
+
+      throw new Error(
+        'Aucune ligne de planning'
       );
 
-      render(data);
+    }
 
-    })
 
-    .catch(error => {
+    console.log(
+      '📅 Planning à afficher :',
+      data
+    );
 
-      console.error(
-        '❌ Erreur planning:',
-        error
-      );
+
+    renderDesktop(data.rows);
+
+    renderMobile(data.rows);
+
+  }
+
+
+  // =========================================================
+  // MESSAGE D'ERREUR
+  // =========================================================
+
+  function showError(error) {
+
+
+    console.error(
+      '❌ Erreur finale :',
+      error
+    );
+
+
+    if (root) {
 
       root.innerHTML = `
         <tr>
+
           <td
             colspan="8"
             class="schedule-loading"
           >
             Impossible de charger le planning.
           </td>
+
         </tr>
       `;
+
+    }
+
+
+    if (mobileRoot) {
 
       mobileRoot.innerHTML = `
         <div class="schedule-loading">
@@ -377,7 +657,36 @@
         </div>
       `;
 
+    }
+
+  }
+
+
+  // =========================================================
+  // DÉMARRAGE
+  // =========================================================
+
+  console.log(
+    '🚀 SIMAC Planning démarré'
+  );
+
+
+  getSchedule()
+    .then(function (data) {
+
+      render(data);
+
+      console.log(
+        '✅ Planning affiché avec succès'
+      );
+
+    })
+    .catch(function (error) {
+
+      showError(error);
+
     });
+
 
 })();
 ```
