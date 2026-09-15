@@ -9,7 +9,7 @@
 <body>
 <header><div class="top"><div><h1>⚙️ Modifier l'emploi du temps</h1><p>SIMAC Groupe 1 · GitHub Pages + Google Apps Script</p></div><a href="index.html">← Voir le planning</a></div></header>
 <main>
-<div class="card"><div class="toolbar"><h2>🔐 Accès administrateur</h2></div><div class="auth"><input id="key" type="password" placeholder="Mot de passe administrateur"><button id="load">Charger le planning</button></div><p class="hint">Le mot de passe est vérifié côté Google Apps Script. Ne mets jamais la clé dans <code>config.js</code>.</p></div>
+<div class="card"><div class="toolbar"><h2>🔐 Accès administrateur</h2></div><div class="auth"><input id="key" type="password" placeholder="Mot de passe administrateur"><button id="load">Charger le planning</button></div></div>
 <div class="card locked" id="panel"><div class="toolbar"><h2>📅 Éditeur</h2><button id="add">+ Ajouter un horaire</button></div><div class="grid"><table class="editor"><thead><tr><th>Horaire</th><th>Lundi</th><th>Mardi</th><th>Mercredi</th><th>Jeudi</th><th>Vendredi</th><th>Samedi</th><th>Dimanche</th><th></th></tr></thead><tbody id="editorBody"></tbody></table></div><div class="actions"><button id="save">💾 Enregistrer</button><span id="status"></span></div></div>
 </main>
 <script src="config.js"></script>
